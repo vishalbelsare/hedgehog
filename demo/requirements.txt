@@ -1,3 +1,0 @@
-graphviz
-hedgehog @ git+https://github.com/MaxHalford/hedgehog
-streamlit

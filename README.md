@@ -1,7 +1,12 @@
 <div align="center">
-    <h1>Bayesian networks in Python</h1>
+    <h1>sorobn — Bayesian networks in Python</h1>
+    <div>
+        <a href="https://github.com/MaxHalford/sorobn/actions/workflows/unit-tests.yml"><img src="https://github.com/MaxHalford/sorobn/actions/workflows/unit-tests.yml/badge.svg" /></a>
+    </div>
 </div>
 </br>
+
+<img style="padding-bottom: 20px" src="https://user-images.githubusercontent.com/8095957/225851341-31acd01b-54ad-429d-9d14-ee367edfb76d.png" width="33%" alt="DALL·E 2023-03-17 09 21 56 - An oil painting by Matisse of a Bayesian network  Each node in the network is an abacus with red balls and a wooden frame" align="right" />
 
 This is an unambitious Python library for working with [Bayesian networks](https://www.wikiwand.com/en/Bayesian_network). For serious usage, you should probably be using a more established project, such as [pomegranate](https://pomegranate.readthedocs.io/en/latest/), [pgmpy](http://pgmpy.org/), [bnlearn](https://erdogant.github.io/bnlearn/pages/html/index.html) (which is built on the latter), or even [PyMC](https://docs.pymc.io/). There's also the well-documented [bnlearn](https://www.bnlearn.com/) package in R. Hey, you could even go medieval and use something like [Netica](https://www.norsys.com/) — I'm just jesting, they actually have a [nice tutorial on Bayesian networks](https://www.norsys.com/tutorials/netica/secA/tut_A1.htm). By the way, if you're not familiar with Bayesian networks, then I highly recommend Patrick Winston's MIT courses on probabilistic inference ([part 1](https://www.youtube.com/watch?v=A6Ud6oUCRak), [part 2](https://www.youtube.com/watch?v=EC6bf8JCpDQ)).
 
@@ -13,10 +18,11 @@ The main goal of this project is to be used for educational purposes. As such, m
 - [Installation](#installation)
 - [Usage](#usage)
   - [✍️ Manual structures](#️-manual-structures)
+  - [🎲 Random sampling](#-random-sampling)
   - [🔮 Probabilistic inference](#-probabilistic-inference)
   - [❓ Missing value imputation](#-missing-value-imputation)
   - [🤷 Likelihood estimation](#-likelihood-estimation)
-  - [🎲 Random sampling](#-random-sampling)
+  - [🧮 Parameter estimation](#-parameter-estimation)
   - [🧱 Structure learning](#-structure-learning)
     - [🌳 Chow-Liu trees](#-chow-liu-trees)
   - [👀 Visualization](#-visualization)
@@ -28,29 +34,29 @@ The main goal of this project is to be used for educational purposes. As such, m
 
 ## Installation
 
-You should be able to install and use this library with any Python version above 3.5.
+You should be able to install and use this library with any Python version above 3.9:
 
 ```sh
-$ pip install git+https://github.com/MaxHalford/vose
-$ pip install git+https://github.com/MaxHalford/hedgehog
+pip install sorobn
 ```
 
-Note that under the hood `hedgehog` uses [`vose`](https://github.com/MaxHalford/vose) for random sampling, which is written in Cython.
+Note that under the hood, `sorobn` uses [`vose`](https://github.com/MaxHalford/vose) for random sampling, which is written in Cython.
 
 ## Usage
 
 ### ✍️ Manual structures
 
-The central construct in `hedgehog` is the `BayesNet` class. A Bayesian network's structure can be manually defined by instantiating a `BayesNet`. As an example, let's use [Judea Pearl's famous alarm network](https://books.google.fr/books?id=vFk7DwAAQBAJ&pg=PT40&lpg=PT40&dq=judea+pearl+alarm+network&source=bl&ots=Sa24Dczalo&sig=ACfU3U1yGe85VxGkygAx5G-X6UwYodHpTg&hl=en&sa=X&ved=2ahUKEwjVxJOQvbDpAhUSx4UKHTHPBkwQ6AEwAHoECAoQAQ#v=onepage&q=judea%20pearl%20alarm%20network&f=false):
+The central construct in `sorobn` is the `BayesNet` class. A Bayesian network's structure can be manually defined by instantiating a `BayesNet`. As an example, let's use [Judea Pearl's famous alarm network](https://books.google.fr/books?id=vFk7DwAAQBAJ&pg=PT40&lpg=PT40&dq=judea+pearl+alarm+network&source=bl&ots=Sa24Dczalo&sig=ACfU3U1yGe85VxGkygAx5G-X6UwYodHpTg&hl=en&sa=X&ved=2ahUKEwjVxJOQvbDpAhUSx4UKHTHPBkwQ6AEwAHoECAoQAQ#v=onepage&q=judea%20pearl%20alarm%20network&f=false):
 
 ```python
->>> import hedgehog as hh
+>>> import sorobn as hh
 
 >>> bn = hh.BayesNet(
 ...     ('Burglary', 'Alarm'),
 ...     ('Earthquake', 'Alarm'),
 ...     ('Alarm', 'John calls'),
-...     ('Alarm', 'Mary calls')
+...     ('Alarm', 'Mary calls'),
+...     seed=42,
 ... )
 
 ```
@@ -58,11 +64,12 @@ The central construct in `hedgehog` is the `BayesNet` class. A Bayesian network'
 You may also use the following notation, which is slightly more terse:
 
 ```python
->>> import hedgehog as hh
+>>> import sorobn as hh
 
 >>> bn = hh.BayesNet(
 ...     (['Burglary', 'Earthquake'], 'Alarm'),
-...     ('Alarm', ['John calls', 'Mary calls'])
+...     ('Alarm', ['John calls', 'Mary calls']),
+...     seed=42
 ... )
 
 ```
@@ -129,6 +136,68 @@ Note that you are allowed to specify variables that have no dependencies with an
 
 ```
 
+### 🎲 Random sampling
+
+You can use a Bayesian network to generate random samples. The samples will follow the distribution induced by the network's structure and its conditional probability tables.
+
+```python
+>>> from pprint import pprint
+
+>>> pprint(bn.sample())
+{'Alarm': False,
+ 'Burglary': False,
+ 'Earthquake': False,
+ 'John calls': False,
+ 'Mary calls': False}
+
+>>> bn.sample(5)  # doctest: +SKIP
+    Alarm  Burglary  Earthquake  John calls  Mary calls
+0  False     False       False       False       False
+1  False     False       False       False       False
+2  False     False       False       False       False
+3  False     False       False       False       False
+4  False     False       False        True       False
+
+```
+
+You can also specify starting values for a subset of the variables.
+
+```python
+>>> pprint(bn.sample(init={'Alarm': True, 'Burglary': True}))
+{'Alarm': True,
+ 'Burglary': True,
+ 'Earthquake': False,
+ 'John calls': True,
+ 'Mary calls': False}
+
+```
+
+<!-- There are different sampling methods which you can choose from.
+
+```python
+> pprint(bn.sample(method='backward'))
+{'Alarm': False,
+ 'Burglary': False,
+ 'Earthquake': False,
+ 'John calls': False,
+ 'Mary calls': False}
+
+> pprint(bn.sample(init={'Earthquake': True}, method='backward'))
+{'Alarm': True,
+ 'Burglary': False,
+ 'Earthquake': True,
+ 'John calls': True,
+ 'Mary calls': False}
+
+``` -->
+
+The supported inference methods are:
+
+- `forward` for [forward sampling](https://ermongroup.github.io/cs228-notes/inference/sampling/#forward-sampling).
+<!--- `backward` for [backward sampling](https://arxiv.org/ftp/arxiv/papers/1302/1302.6807.pdf).-->
+
+Note that randomness is controlled via the `seed` parameter, when `BayesNet` is initialized.
+
 ### 🔮 Probabilistic inference
 
 A Bayesian network is a [generative model](https://www.wikiwand.com/en/Generative_model). Therefore, it can be used for many purposes. For instance, it can answer probabilistic queries, such as:
@@ -165,18 +234,15 @@ Name: P(John calls, Mary calls), dtype: float64
 By default, the answer is found via an exact inference procedure. For small networks this isn't very expensive to perform. However, for larger networks, you might want to prefer using [approximate inference](https://www.wikiwand.com/en/Approximate_inference). The latter is a class of methods that randomly sample the network and return an estimate of the answer. The quality of the estimate increases with the number of iterations that are performed. For instance, you can use [Gibbs sampling](https://www.wikiwand.com/en/Gibbs_sampling):
 
 ```python
->>> import numpy as np
->>> np.random.seed(42)
-
 >>> bn.query(
 ...     'Burglary',
 ...     event={'Mary calls': True, 'John calls': True},
 ...     algorithm='gibbs',
 ...     n_iterations=1000
-... )
+... )  # doctest: +SKIP
 Burglary
-False    0.73
-True     0.27
+False    0.706
+True     0.294
 Name: P(Burglary), dtype: float64
 
 ```
@@ -188,13 +254,13 @@ The supported inference methods are:
 - `likelihood` for [likelihood weighting](https://artint.info/2e/html/ArtInt2e.Ch8.S6.SS4.html).
 - `rejection` for [rejection sampling](https://www.wikiwand.com/en/Rejection_sampling).
 
+As with random sampling, randomness is controlled during `BayesNet` initialization, via the `seed` parameter.
+
 ### ❓ Missing value imputation
 
 A use case for probabilistic inference is to impute missing values. The `impute` method fills the missing values with the most likely replacements, given the present information. This is usually more accurate than simply replacing by the mean or the most common value. Additionally, such an approach can be much more efficient than [model-based iterative imputation](https://scikit-learn.org/stable/modules/generated/sklearn.impute.IterativeImputer.html#sklearn.impute.IterativeImputer).
 
 ```python
->>> from pprint import pprint
-
 >>> sample = {
 ...     'Alarm': True,
 ...     'Burglary': True,
@@ -274,64 +340,6 @@ Name: P(Alarm, Burglary, Earthquake, John calls, Mary calls), dtype: float64
 
 ```
 
-### 🎲 Random sampling
-
-You can use a Bayesian network to generate random samples. The samples will follow the distribution induced by the network's structure and its conditional probability tables.
-
-```python
->>> pprint(bn.sample())
-{'Alarm': False,
- 'Burglary': False,
- 'Earthquake': False,
- 'John calls': False,
- 'Mary calls': False}
-
->>> bn.sample(5)
-    Alarm  Burglary  Earthquake  John calls  Mary calls
-0   False     False       False       False       False
-1   False     False       False       False       False
-2   False     False       False       False       False
-3   False     False       False        True       False
-4   False     False       False       False       False
-
-```
-
-You can also specify starting values for a subset of the variables.
-
-```python
->>> pprint(bn.sample(init={'Alarm': True, 'Burglary': True}))
-{'Alarm': True,
- 'Burglary': True,
- 'Earthquake': False,
- 'John calls': True,
- 'Mary calls': True}
-
-```
-
-<!-- There are different sampling methods which you can choose from.
-
-```python
-> pprint(bn.sample(method='backward'))
-{'Alarm': False,
- 'Burglary': False,
- 'Earthquake': False,
- 'John calls': False,
- 'Mary calls': False}
-
-> pprint(bn.sample(init={'Earthquake': True}, method='backward'))
-{'Alarm': True,
- 'Burglary': False,
- 'Earthquake': True,
- 'John calls': True,
- 'Mary calls': False}
-
-``` -->
-
-The supported inference methods are:
-
-- `forward` for [forward sampling](https://ermongroup.github.io/cs228-notes/inference/sampling/#forward-sampling).
-<!--- `backward` for [backward sampling](https://arxiv.org/ftp/arxiv/papers/1302/1302.6807.pdf).-->
-
 ### 🧮 Parameter estimation
 
 You can determine the values of the P from a dataset. This is a straightforward procedure, as it only requires performing a [`groupby`](https://pandas.pydata.org/pandas-docs/stable/reference/api/pandas.DataFrame.groupby.html) followed by a [`value_counts`](https://pandas.pydata.org/pandas-docs/stable/reference/api/pandas.Series.value_counts.html) for each CPT.
@@ -393,16 +401,16 @@ A side-goal of this project is to provide a user interface to play around with a
 You can install the GUI dependencies by running the following command:
 
 ```sh
-$ pip install git+https://github.com/MaxHalford/hedgehog --install-option="--extras-require=gui"
+$ pip install git+https://github.com/MaxHalford/sorobn --install-option="--extras-require=gui"
 ```
 
-You can then launch a demo by running the `hedgehog` command:
+You can then launch a demo by running the `sorobn` command:
 
 ```sh
-$ hedgehog
+$ sorobn
 ```
 
-This will launch a `streamlit` interface where you can play around with the examples that `hedgehog` provides. You can see a running instance of it in [this Heroku app](https://hedgehog-demo.herokuapp.com/).
+This will launch a `streamlit` interface where you can play around with the examples that `sorobn` provides. You can see a running instance of it in [this Streamlit app](https://sorobn.streamlit.app/).
 
 An obvious next step would be to allow users to run this with their own Bayesian networks. Then again, using `streamlit` is so easy that you might as well do this yourself.
 
@@ -447,22 +455,20 @@ Here is some example usage:
 
 ```sh
 # Download and navigate to the source code
-$ git clone https://github.com/MaxHalford/hedgehog
-$ cd hedgehog
+git clone https://github.com/MaxHalford/sorobn
+cd sorobn
 
-# Create a virtual environment
-$ conda create -n hedgehog -y python=3.9
-$ conda activate hedgehog
+# Install poetry
+curl -sSL https://install.python-poetry.org | python3 -
 
 # Install in development mode
-$ pip install -e ".[dev]"
-$ pip install git+https://github.com/MaxHalford/vose
-$ python setup.py develop
+poetry install
 
 # Run tests
-$ pytest
+poetry shell
+pytest
 ```
 
 ## License
 
-This project is free and open-source software licensed under the [MIT license](https://github.com/MaxHalford/hedgehog/blob/master/LICENSE).
+This project is free and open-source software licensed under the [MIT license](https://github.com/MaxHalford/sorobn/blob/master/LICENSE).

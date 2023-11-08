@@ -3,6 +3,7 @@ import functools
 import itertools
 import graphlib
 import queue
+import random
 import typing
 
 import numpy as np
@@ -26,7 +27,7 @@ class CDTAccessor:
         self.series = series
         self.sampler = None
 
-    def sample(self):
+    def sample(self, rng=random):
         """Sample a row at random.
 
         The `sample` method of a Series is very slow. Additionally, it is not designed to be used
@@ -37,7 +38,7 @@ class CDTAccessor:
         if self.sampler is None:
             self.sampler = vose.Sampler(
                 weights=self.series.to_numpy(dtype=float),
-                seed=np.random.randint(2 ** 16),
+                seed=rng.randint(1, 2**16),
             )
         idx = self.sampler.sample()
         return self.series.index[idx]
@@ -273,6 +274,9 @@ class BayesNet:
         justification for doing so is related to Laplace's rule of succession and to Bayesian
         statistics in general.
 
+    seed
+        The seed for the random number generator used to generate artificial samples.
+
     Attributes
     ----------
     nodes (list)
@@ -281,9 +285,11 @@ class BayesNet:
 
     """
 
-    def __init__(self, *structure, prior_count: int = None):
+    def __init__(self, *structure, prior_count: int = None, seed: int = None):
 
         self.prior_count = prior_count
+        self.seed = seed
+        self._rng = random.Random(seed)
 
         def coerce_list(obj):
             if isinstance(obj, list):
@@ -384,7 +390,7 @@ class BayesNet:
         Examples
         --------
 
-        >>> import hedgehog as hh
+        >>> import sorobn as hh
 
         >>> bn = hh.examples.sprinkler()
 
@@ -517,7 +523,7 @@ class BayesNet:
                 if node in init:
                     node_value = init[node]
                 else:
-                    node_value = P.cdt.sample()
+                    node_value = P.cdt.sample(rng=self._rng)
 
                 sample[node] = node_value
                 likelihood *= P.get(node_value, 0)
@@ -563,18 +569,16 @@ class BayesNet:
         Examples
         --------
 
-        >>> import hedgehog as hh
+        >>> import sorobn as hh
         >>> import numpy as np
 
-        >>> np.random.seed(42)
-
-        >>> bn = hh.examples.sprinkler()
+        >>> bn = hh.examples.sprinkler(seed=42)
 
         >>> event = {'Sprinkler': True}
-        >>> bn.query('Rain', event=event, algorithm='rejection', n_iterations=100)
+        >>> bn.query('Rain', event=event, algorithm='rejection', n_iterations=100)  # doctest: +SKIP
         Rain
-        False    0.678571
-        True     0.321429
+        False    0.730769
+        True     0.269231
         Name: P(Rain), dtype: float64
 
         """
@@ -606,18 +610,16 @@ class BayesNet:
         Examples
         --------
 
-        >>> import hedgehog as hh
+        >>> import sorobn as hh
         >>> import numpy as np
 
-        >>> np.random.seed(42)
-
-        >>> bn = hh.examples.sprinkler()
+        >>> bn = hh.examples.sprinkler(seed=42)
 
         >>> event = {'Sprinkler': True}
-        >>> bn.query('Rain', event=event, algorithm='likelihood', n_iterations=500)
+        >>> bn.query('Rain', event=event, algorithm='likelihood', n_iterations=500)  # doctest: +SKIP
         Rain
-        False    0.765995
-        True     0.234005
+        False    0.762228
+        True     0.237772
         Name: P(Rain), dtype: float64
 
         """
@@ -657,18 +659,16 @@ class BayesNet:
         Examples
         --------
 
-        >>> import hedgehog as hh
+        >>> import sorobn as hh
         >>> import numpy as np
 
-        >>> np.random.seed(42)
-
-        >>> bn = hh.examples.sprinkler()
+        >>> bn = hh.examples.sprinkler(seed=42)
 
         >>> event = {'Sprinkler': True}
-        >>> bn.query('Rain', event=event, algorithm='gibbs', n_iterations=500)
+        >>> bn.query('Rain', event=event, algorithm='gibbs', n_iterations=500)  # doctest: +SKIP
         Rain
-        False    0.726
-        True     0.274
+        False    0.632
+        True     0.368
         Name: P(Rain), dtype: float64
 
         """
@@ -687,7 +687,9 @@ class BayesNet:
             )
 
             if boundary := self.markov_boundary(node):
-                post = post.groupby(boundary).apply(lambda g: g / g.sum())
+                post = post.groupby(boundary, group_keys=False).apply(
+                    lambda g: g / g.sum()
+                )
                 post = post.reorder_levels([*boundary, node])
 
             post = post.sort_index()
@@ -710,7 +712,7 @@ class BayesNet:
             condition = tuple(state[node] for node in boundaries[var])
             if condition:
                 P = P.cdt[condition]
-            state[var] = P.cdt.sample()
+            state[var] = P.cdt.sample(rng=self._rng)
 
             # Record the current state
             for var in query:
@@ -728,7 +730,7 @@ class BayesNet:
         Examples
         --------
 
-        >>> import hedgehog as hh
+        >>> import sorobn as hh
 
         >>> bn = hh.examples.sprinkler()
 
@@ -806,7 +808,7 @@ class BayesNet:
         Examples
         --------
 
-        >>> import hedgehog as hh
+        >>> import sorobn as hh
 
         >>> bn = hh.examples.asia()
 
@@ -966,7 +968,7 @@ class BayesNet:
         Examples
         --------
 
-        >>> import hedgehog as hh
+        >>> import sorobn as hh
 
         >>> hh.BayesNet(
         ...     ('a', 'b'),
@@ -994,7 +996,7 @@ class BayesNet:
 
         The following article is taken from the Markov blanket Wikipedia article.
 
-        >>> import hedgehog as hh
+        >>> import sorobn as hh
 
         >>> bn = hh.BayesNet(
         ...     (0, 3),
@@ -1028,7 +1030,7 @@ class BayesNet:
         Examples
         --------
 
-        >>> import hedgehog as hh
+        >>> import sorobn as hh
 
         >>> bn = hh.examples.asia()
 
